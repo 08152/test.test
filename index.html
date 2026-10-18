@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sci-Fi Prop Studio</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#080d16;color:#e9f3ff;font:15px system-ui,Segoe UI,sans-serif}
+header{padding:16px 20px;background:#101a2b;border-bottom:1px solid #263850;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+h1{font-size:19px;margin:0;letter-spacing:.04em}.sub{color:#9bb2cc;font-size:12px;margin-top:3px}
+main{max-width:1200px;margin:auto;padding:16px;display:grid;grid-template-columns:1fr 290px;gap:16px}
+#view{height:min(70vh,700px);min-height:390px;border:1px solid #243852;border-radius:14px;overflow:hidden;background:radial-gradient(ellipse at 50% 35%,#192d47,#070b13 70%)}
+aside{background:#101a2b;border:1px solid #243852;border-radius:14px;padding:16px;align-self:start}
+button,select{border:1px solid #35516e;background:#182a40;color:#edf6ff;padding:10px 12px;border-radius:9px;cursor:pointer;font:inherit}
+button:hover{background:#234366}button.primary{background:#087dba;border-color:#20a9e8}.controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+label{display:block;margin:14px 0 6px;color:#b9cbe0;font-size:13px}.note{font-size:12px;line-height:1.5;color:#9eb4cd}.status{padding:9px 10px;background:#0a1320;border-radius:8px;margin-top:10px;color:#9edbff;overflow-wrap:anywhere}
+@media(max-width:800px){main{grid-template-columns:1fr}#view{height:52vh;min-height:330px}}
+</style></head><body>
+<header><div><h1>ASTERION FX-9 · SCI-FI PROP STUDIO</h1><div class="sub">Fiktives 3D-Design · eingebettete Texturen · GLB-Animationen</div></div>
+<button class="primary" id="downloadAll">ZIP-Paket herunterladen</button></header>
+<main><section><div id="view"></div><div class="controls">
+<button id="play">▶ Animation abspielen</button><button id="stop">Ⅱ Pause</button><button id="reset">↺ Zurücksetzen</button>
+<button id="burst">5-Schuss-Energieeffekt</button><button id="reload">Magazinwechsel</button></div></section>
+<aside><label for="model">3D-Modell</label><select id="model"><option value="gun">Sci-Fi Pistole</option><option value="cell">Bio-Gel-Energiezelle</option></select>
+<label for="clip">Animation</label><select id="clip"><option value="all">Alle verfügbaren Animationen</option><option value="burst">5-Schuss-Burst</option><option value="reload">Magazinwechsel</option></select>
+<div class="controls"><button id="downloadModel">Aktuelles GLB herunterladen</button></div>
+<div class="status" id="status">Lade 3D-Bibliothek und Modelle …</div>
+<p class="note">Bedienung: Ziehen zum Drehen, Mausrad/Pinch zum Zoomen. Die GLB-Dateien enthalten ihre Texturen und Animationen direkt. Für den ersten Aufruf wird eine Internetverbindung benötigt, damit Three.js geladen werden kann.</p>
+<p class="note">Hinweis: Dies ist ein rein fiktives, nicht funktionsfähiges Sci-Fi-Prop. Der blaue Effekt ist eine stilisierte Energievisualisierung.</p></aside></main>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+import {OrbitControls} from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import {GLTFLoader} from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js';
+import JSZip from 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm';
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x080d16);
+const camera=new THREE.PerspectiveCamera(45,1,.1,100);camera.position.set(3.8,2.6,5.4);
+const renderer=new THREE.WebGLRenderer({antialias:true,alpha:false});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.outputColorSpace=THREE.SRGBColorSpace;
+document.querySelector('#view').appendChild(renderer.domElement);
+const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;
+scene.add(new THREE.HemisphereLight(0xbadfff,0x1a2435,2));
+const key=new THREE.DirectionalLight(0xffffff,3);key.position.set(4,5,6);scene.add(key);
+const rim=new THREE.PointLight(0x168bff,35,12);rim.position.set(-2,1,1);scene.add(rim);
+const floor=new THREE.GridHelper(12,24,0x244765,0x14283b);floor.position.y=-1.4;scene.add(floor);
+const loader=new GLTFLoader();let current=null,mixer=null,actions=[],raf=null,modelKey='gun';
+const paths={gun:'asterion_fx9.glb',cell:'bio_gel_energy_cell.glb'};
+const status=document.querySelector('#status');
+function setStatus(s){status.textContent=s}
+async function loadModel(key){
+ modelKey=key;if(current){scene.remove(current);current=null}if(mixer){mixer.stopAllAction();mixer=null}
+ actions=[];setStatus('Lade '+paths[key]+' …');
+ try{const gltf=await loader.loadAsync(paths[key]);current=gltf.scene;scene.add(current);
+  current.position.set(0,0,0);current.rotation.set(0,0,0);
+  mixer=new THREE.AnimationMixer(current);actions=(gltf.animations||[]).map(c=>mixer.clipAction(c));
+  if(key==='cell'){current.scale.setScalar(1.35);camera.position.set(2.7,1.8,4.2)}else{current.scale.setScalar(1);camera.position.set(3.8,2.6,5.4)}
+  controls.target.set(0,0,0);controls.update();setStatus('Bereit · '+gltf.animations.length+' GLB-Animation(en) · Texturen eingebettet');
+ }catch(e){setStatus('Laden fehlgeschlagen. Bitte ZIP entpacken und HTML im selben Ordner öffnen. Bei Browser-Sicherheitsbeschränkungen lokalen Server nutzen.');console.error(e)}
+}
+function play(which='all'){
+ if(!mixer||!actions.length)return;
+ mixer.stopAllAction();
+ const selected=which==='all'?actions:actions.filter(a=>which==='burst'?/Five-shot|muzzle|slide/i.test(a.getClip().name):/Reload/i.test(a.getClip().name));
+ (selected.length?selected:actions).forEach(a=>{a.reset();a.setLoop(THREE.LoopRepeat,Infinity);a.play()});
+}
+document.querySelector('#model').addEventListener('change',e=>loadModel(e.target.value));
+document.querySelector('#clip').addEventListener('change',e=>play(e.target.value));
+document.querySelector('#play').onclick=()=>play(document.querySelector('#clip').value);
+document.querySelector('#stop').onclick=()=>mixer&&mixer.stopAllAction();
+document.querySelector('#reset').onclick=()=>{if(mixer){mixer.stopAllAction();mixer.setTime(0)}};
+document.querySelector('#burst').onclick=()=>{if(modelKey!=='gun')loadModel('gun').then(()=>play('burst'));else play('burst')};
+document.querySelector('#reload').onclick=()=>{if(modelKey!=='gun')loadModel('gun').then(()=>play('reload'));else play('reload')};
+function download(url,name){const a=document.createElement('a');a.href=url;a.download=name;a.click()}
+document.querySelector('#downloadModel').onclick=()=>download(paths[modelKey],paths[modelKey]);
+document.querySelector('#downloadAll').onclick=async()=>{
+ try{
+  setStatus('Erstelle ZIP mit HTML, beiden GLB-Modellen und Texturen …');
+  const zip=new JSZip();
+  for(const f of ['index.html','README.txt','asterion_fx9.glb','bio_gel_energy_cell.glb','textures/brushed_iron.png','textures/energy_slime.png']){
+   const response=await fetch(f);if(!response.ok)throw new Error('Datei fehlt: '+f);
+   zip.file(f,await response.arrayBuffer());
+  }
+  const blob=await zip.generateAsync({type:'blob'});
+  const url=URL.createObjectURL(blob);download(url,'scifi_prop_studio.zip');setTimeout(()=>URL.revokeObjectURL(url),30000);
+  setStatus('ZIP erstellt und Download gestartet.');
+ }catch(e){setStatus('ZIP-Erstellung benötigt einen lokalen Server. Entpacke das Paket und starte im Ordner z.B. `python -m http.server 8000`, dann öffne http://localhost:8000.');console.error(e)}
+};
+function resize(){const el=document.querySelector('#view');camera.aspect=el.clientWidth/el.clientHeight;camera.updateProjectionMatrix();renderer.setSize(el.clientWidth,el.clientHeight)}
+new ResizeObserver(resize).observe(document.querySelector('#view'));resize();
+const clock=new THREE.Clock();function animate(){requestAnimationFrame(animate);if(mixer)mixer.update(Math.min(clock.getDelta(),.05));controls.update();renderer.render(scene,camera)}animate();
+loadModel('gun');
+</script></body></html>
